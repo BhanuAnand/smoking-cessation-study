@@ -1,0 +1,331 @@
+---
+title: "cARE Stats"
+output: html_notebook
+---
+
+For CARE dataset, mean of engagement
+```{r}
+mean(care_data$engagement)
+```
+
+For PNS dataset, mean of engagement
+```{r}
+mean(pns_data$engagement)
+```
+
+For CARE dataset, mean of current ema engagement
+
+```{r}
+aggregate(engagement ~ previous_ema_engagement, data = care_data, mean)
+```
+
+For PNS dataset, mean of current ema engagement for previous ema engagement
+
+```{r}
+aggregate(engagement ~ previous_ema_engagement, data = pns_data, mean)
+```
+
+`
+For CARE dataset, mean of EMA count per participant
+
+```{r}
+care_data_ema_count <- aggregate(Initiated ~ Part_ID, data = care_data, length)
+mean(care_data_ema_count$Initiated)
+```
+
+```{r}
+median(care_data_ema_count$Initiated)
+```
+```{r}
+sd(care_data_ema_count$Initiated)
+```
+
+```{r}
+min(care_data_ema_count$Initiated)
+```
+
+```{r}
+max(care_data_ema_count$Initiated)
+```
+
+```{r}
+IQR(care_data_ema_count$Initiated)
+```
+
+
+For PNS dataset, mean of EMA count per participant
+
+```{r}
+pns_data_ema_count <- aggregate(delivered_hrts ~ id, data = pns_data, length)
+mean(pns_data_ema_count$delivered_hrts)
+```
+```{r}
+median(pns_data_ema_count$delivered_hrts)
+```
+
+```{r}
+sd(pns_data_ema_count$delivered_hrts)
+```
+
+```{r}
+min(pns_data_ema_count$delivered_hrts)
+```
+
+```{r}
+max(pns_data_ema_count$delivered_hrts)
+```
+
+```{r}
+IQR(pns_data_ema_count$delivered_hrts)
+```
+
+For CARE dataset, summary statistics table
+
+```{r}
+care_data$new_day_modified <- care_data$new_day + 7
+```
+
+```{r}
+engagement_rate_per_day_df = aggregate(engagement ~ new_day_modified, data = care_data, mean)
+colnames(engagement_rate_per_day_df)[2] <- "mean_engagement"
+engagement_rate_per_day_df
+```
+
+```{r}
+atleast_one_ema_df = aggregate(Part_ID ~ new_day_modified, data = care_data, n_distinct)
+colnames(atleast_one_ema_df)[2] <- "total_individuals_with_atleast_one_ema"
+atleast_one_ema_df
+```
+
+```{r}
+total_ema_per_day_df  = aggregate(Initiated ~ new_day_modified, data = care_data, length)
+colnames(total_ema_per_day_df)[2] <- "total_ema"
+total_ema_per_day_df
+```
+
+```{r}
+care_comb_df <- cbind(engagement_rate_per_day_df,atleast_one_ema_df,total_ema_per_day_df)
+care_comb_df <- care_comb_df %>% select(-3, -5) 
+colnames(care_comb_df)[1] <- "day"
+care_comb_df
+```
+
+```{r}
+library(readr)
+write_csv(care_comb_df, "O:/QMP-BIDS/Utah - CARE Datasets/Aditi/CARE/Code/Survival-HMM-Care/summary_stats_care_pns/care_summary_stats.csv")
+```
+
+
+For PNS dataset, summary statistics table
+
+```{r}
+pns_data$study_day_modified <- pns_data$study_day + 7
+```
+
+```{r}
+engagement_rate_per_day_df = aggregate(engagement ~ study_day_modified, data = pns_data, mean)
+colnames(engagement_rate_per_day_df)[2] <- "mean_engagement"
+engagement_rate_per_day_df
+```
+
+```{r}
+atleast_one_ema_df = aggregate(id ~ study_day_modified, data = pns_data, n_distinct)
+colnames(atleast_one_ema_df)[2] <- "total_individuals_with_atleast_one_ema"
+atleast_one_ema_df
+```
+
+```{r}
+total_ema_per_day_df  = aggregate(record_id ~ study_day_modified, data = pns_data, length)
+colnames(total_ema_per_day_df)[2] <- "total_ema"
+total_ema_per_day_df
+```
+
+```{r}
+pns_comb_df <- cbind(engagement_rate_per_day_df,atleast_one_ema_df,total_ema_per_day_df)
+pns_comb_df <- pns_comb_df %>% select(-3, -5) 
+colnames(pns_comb_df)[1] <- "day"
+pns_comb_df
+```
+
+```{r}
+library(readr)
+write_csv(pns_comb_df, "O:/QMP-BIDS/Utah - CARE Datasets/Aditi/CARE/Code/Survival-HMM-Care/summary_stats_care_pns/pns_summary_stats.csv")
+```
+
+
+
+```{r}
+care_data_individual <- aggregate(data = care_data, engagement ~ Part_ID, mean)
+ggplot(data = care_data_individual, aes(x = engagement)) + geom_histogram()
+```
+
+```{r}
+mean(care_data_individual$engagement)
+```
+
+```{r}
+sd(care_data_individual$engagement)
+```
+
+```{r}
+IQR(care_data_individual$engagement)
+```
+```{r}
+pns_data_individual <- aggregate(data = pns_data, engagement ~ id, mean)
+ggplot(data = pns_data_individual, aes(x = engagement)) + geom_histogram()
+```
+
+```{r}
+mean(pns_data_individual$engagement)
+```
+
+```{r}
+sd(pns_data_individual$engagement)
+```
+
+```{r}
+IQR(pns_data_individual$engagement)
+```
+Method 1: To plot histograms of CARE and PNS on the same axis
+
+```{r}
+c1 <- rgb(173,216,230,max = 255, alpha = 80, names = "lt.blue")
+c2 <- rgb(255,192,203, max = 255, alpha = 80, names = "lt.pink")
+
+b <- min(c(care_data_individual$engagement,pns_data_individual$engagement)) # Set the minimum for the breakpoints
+e <- max(c(care_data_individual$engagement,pns_data_individual$engagement)) # Set the maximum for the breakpoints
+ax <- pretty(b:e, n = 12) # Make a neat vector for the breakpoints
+ax
+```
+
+```{r}
+hgA <- hist(care_data_individual$engagement, breaks = ax, plot = FALSE) # Save first histogram data
+hgB <- hist(pns_data_individual$engagement, breaks = ax, plot = FALSE) # Save 2nd histogram data
+
+plot(hgA, col = c1) # Plot 1st histogram using a transparent color
+plot(hgB, col = c2, add = TRUE) # Add 2nd histogram using different color
+```
+
+Method 2: To plot histograms of CARE and PNS on the same axis
+
+```{r}
+care_data_individual <- aggregate(data = care_data, engagement ~ Part_ID, mean)
+pns_data_individual <- aggregate(data = pns_data, engagement ~ id, mean)
+
+pns_data_individual <- pns_data_individual %>% rename(Part_ID = id)
+
+care_data_individual$source="CARE"
+pns_data_individual$source="PNS"
+
+dat_combined = rbind(care_data_individual, pns_data_individual)
+dat_combined
+
+```
+
+```{r}
+ggplot(dat_combined, aes(engagement, fill=source)) + 
+  geom_histogram(aes(y=..density..), position="identity", colour="grey40", alpha=0.5, binwidth=0.01) +
+  ggtitle("Histograms of individual response rates across all days") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  xlab("Response Rate") +
+  ylab("Density")
+```
+```{r}
+care_data_individual <- aggregate(data = care_data, Initiated ~ day_time_delta, length)
+pns_data_individual <- aggregate(data = pns_data, delivered_hrts ~ day_time_delta, length)
+
+care_data_individual <- care_data_individual %>% rename(Frequency = Initiated)
+pns_data_individual <- pns_data_individual %>% rename(Frequency = delivered_hrts)
+
+care_data_individual$source="CARE"
+pns_data_individual$source="PNS"
+
+dat_combined = rbind(care_data_individual, pns_data_individual)
+dat_combined
+```
+
+```{r}
+care_data_individual
+```
+
+```{r}
+pns_data_individual
+```
+
+
+```{r}
+max(pns_data_individual$Frequency)
+```
+
+```{r}
+aggregate(data = pns_data, id ~ day_time_delta, length)
+```
+```{r}
+pns_data %>% group_by(day_time_delta) %>% summarize(n())
+```
+
+```{r}
+ggplot(dat_combined, aes(day_time_delta, fill=source)) + 
+  geom_histogram(aes(y=..density..), position="identity", colour="grey40", alpha=0.5, binwidth=0.01) +
+  geom_density() +
+  ggtitle("Histograms of frequency of different deltas") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  xlab("Day Time Delta") +
+  ylab("Density")
+```
+
+```{r}
+ggplot(dat_combined, aes(day_time_delta, fill=source)) + 
+  geom_histogram(position="identity", colour="grey40", alpha=0.5, binwidth=0.01) +
+  ggtitle("Histograms of frequency of different deltas") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  xlab("Day Time Delta") +
+  ylab("Frequency")
+```
+```{r}
+hist(pns_data_individual$day_time_delta)
+```
+
+
+```{r}
+# Histogram with kernel density
+ggplot(care_data, aes(x = day_time_delta)) + 
+  geom_histogram(aes(y = ..density..),
+                 colour = 1, fill = "white") +
+  geom_density(lwd = 1, colour = 4,
+               fill = 4, alpha = 0.25)
+```
+```{r}
+care_data$source="CARE"
+pns_data$source="PNS"
+
+dat_combined = rbind(care_data, pns_data)
+dat_combined
+```
+```{r}
+ggplot(dat_combined, aes(day_time_delta, fill=source)) + 
+  geom_histogram(position="identity", colour="grey40", alpha=0.5, binwidth=0.01) +
+  ggtitle("Histograms of frequency of different deltas") +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  xlab("Day Time Delta") +
+  ylab("Frequency")
+```
+
+```{r}
+# Histogram with kernel density
+ggplot(pns_data, aes(x = day_time_delta)) + 
+  geom_histogram(aes(y = ..density..),
+                 colour = 1, fill = "white") +
+  geom_density(lwd = 1, colour = 4,
+               fill = 4, alpha = 0.25)
+```
+
+```{r}
+# Histogram with kernel density
+ggplot(care_data_individual, aes(x = day_time_delta)) + 
+  geom_histogram(aes(y = ..density..),
+                 colour = 1, fill = "white") +
+  geom_density(lwd = 1, colour = 4,
+               fill = 4, alpha = 0.25)
+```
+
