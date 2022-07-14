@@ -1,0 +1,173 @@
+---
+title: "Analyzing Enagement in PNS"
+output: html_notebook
+---
+
+# Getting Started
+
+## Libraries
+
+```{r}
+#install.packages("dplyr")
+#install.packages("tvem")
+library(tvem)
+library(readr)
+library(dplyr)
+```
+
+## Read data
+
+```{r}
+pns_data <- read_csv("O:/QMP-BIDS/Utah - CARE Datasets/Aditi/CARE/Code/Survival-HMM-Care/PNS_EMA_data_for_end_users/curated_random_ema_pns_data_for_active_users.csv")
+```
+
+## Let's look into the data
+
+```{r}
+pns_data
+```
+
+
+## Data preparation
+
+We will create a status variable with value 1 meaning EMA response was complete and 0 meaning EMA response was either incomplete or missed.
+
+```{r}
+pns_data$engagement <- ifelse(pns_data$record_status == 'Completed', 1, 0)
+pns_data
+```
+
+
+Here we are arranging the EMAs as per their delivered time for each individual so that we can produce lag variables
+
+```{r}
+pns_data <- pns_data[order(pns_data$id, pns_data$delivered_hrts), ]
+pns_data
+```
+
+
+Now, we will create a new variable named as previous_ema_engagement by lagging variable engagament by 1
+
+```{r}
+pns_data <- pns_data %>%
+  group_by(id) %>%
+  mutate(previous_ema_engagement = lag(engagement, n=1, order_by=delivered_hrts))
+pns_data
+```
+
+Let's take a look on the data now.
+
+```{r}
+pns_data
+```
+
+Here, we are trying to find a running average of engagement.
+
+```{r}
+pns_data <- pns_data %>% 
+  group_by(id) %>% 
+  mutate(rec = 1) %>% 
+  mutate(rollavg = cumsum(engagement)/cumsum(rec)) %>% 
+  select(-rec)
+pns_data$rollavg <- format(pns_data$rollavg, digits = 3)
+pns_data
+```
+
+
+Now, we are creating a new variable named as avg_ema_engagement by lagging the running average calculated in the above step such that each EMA at time t+1 has a corresponding rolling average of all previous EMAs time till t
+
+```{r}
+pns_data <- pns_data %>%
+  group_by(id) %>%
+  mutate(avg_ema_engagement = as.numeric(lag(rollavg, n=1, order_by=delivered_hrts)))
+pns_data
+```
+
+Below we are creating a new variable day_time to be used in our TVEM analysis. We are adding the time of day to the study day in order to calculate this variable.
+
+```{r}
+pns_data$day_time <- pns_data$study_day + round((as.numeric(format(pns_data$delivered_hrts,'%H'))+round(as.numeric(format(pns_data$delivered_hrts,'%M'))/60, digits = 2))/24, digits = 3)
+pns_data
+```
+
+
+Also, we are going to have time of day saved in a separate variable to be replaced by day_time in our analysis
+
+```{r}
+pns_data$time_of_day <- round((as.numeric(format(pns_data$delivered_hrts,'%H'))+round(as.numeric(format(pns_data$delivered_hrts,'%M'))/60, digits = 2))/24, digits = 3)
+pns_data
+```
+Now, we want to look at those EMAs that were registered with same timestamp.
+
+```{r}
+duplicate_timestamp_rows <- pns_data %>% filter((day_time == lead(day_time) & lead(record_status) == 'Completed') | (day_time == lag(day_time) & lag(record_status) == 'Completed'))
+duplicate_timestamp_rows
+```
+
+Remove the duplicate timestamp rows with Incomplete or Missing status
+
+```{r}
+#pns_data <- pns_data[!((pns_data$day_time == lead(pns_data$day_time) & lead(pns_data$record_status) == 'Complete') | (pns_data$day_time == lag(pns_data$day_time) & lag(pns_data$record_status) == 'Complete')),]
+```
+
+Here we are trying to find delta which is the difference of time of the current EMA from the previous EMA
+
+```{r}
+pns_data <- pns_data %>%
+  group_by(id) %>%
+  mutate(day_time_lagged = lag(day_time, n=1, order_by=delivered_hrts))
+#pns_data$day_time_lagged[is.na(pns_data$day_time_lagged)] <- 0
+pns_data$day_time_delta <- pns_data$day_time - pns_data$day_time_lagged
+pns_data$day_time_delta <- round(pns_data$day_time_delta, digits = 3)
+pns_data <- filter(pns_data, day_time_delta<1)
+pns_data
+
+```
+
+As we have done previous manipulation by lagging a variable within a group, therefore, NA values are introduced in each group. We now checking the count of those NA values. 
+
+```{r}
+sum(is.na(pns_data$avg_ema_engagement))
+```
+
+```{r}
+pns_data <- pns_data %>%
+  group_by(id) %>%
+  slice(2:n())
+pns_data
+```
+
+```{r}
+pns_data[order(pns_data$day_time_delta), ]
+```
+
+```{r}
+pns_data %>% group_by(day_time_delta) %>% summarize(n())
+```
+
+```{r}
+sum(is.na(pns_data$avg_ema_engagement))
+```
+
+
+We are adding 7 as the study days in the study were negative that gave negative day_time but in our plot we should represent day as a positive number.
+
+```{r}
+pns_data$day_time <- pns_data$day_time + 7
+pns_data
+```
+
+```{r}
+dim(pns_data)
+```
+
+
+Now, we want to look at those EMAs that got completed within a span of 20 minutes. The logic behind this is: at each row we check that the current status of EMA is not Complete and the next EMA (20 min apart) is Complete. So, this condition will give us EMAs that remained Incomplete or Missing but were Completed 20 min later.
+
+```{r}
+pns_data %>% filter(day_time_delta <= 0.01 & record_status == 'Completed' & lag(record_status) != "Completed")
+```
+
+```{r}
+pns_data
+```

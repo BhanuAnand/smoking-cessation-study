@@ -1,0 +1,695 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library("scales")
+```
+
+
+```{r}
+##############################################################
+# FIRST PLOT
+##############################################################
+# Fit intercept-only models
+tvem_model1 <- tvem(data=care_data,
+                   formula=engagement~1,
+                   family=binomial(),
+                   id=Part_ID,
+                   time=day_time)
+tvem_model2 <- tvem(data=pns_data,
+                    formula=engagement~1,
+                    family=binomial(),
+                    id=id,
+                    time=day_time)
+
+# Plot probabilities
+time_grid1 <- tvem_model1$time_grid
+time_grid2 <- tvem_model2$time_grid
+log_odds_1 <- tvem_model1$grid_fitted_coefficients$`(Intercept)`$estimate
+probs_1 <- plogis(log_odds_1) # plogis is the inverse logit function;
+log_odds_2 <- tvem_model2$grid_fitted_coefficients$`(Intercept)`$estimate
+probs_2 <- plogis(log_odds_2)
+plot(x=time_grid1,
+     y=probs_1,
+     main="Time-Specific Fitted Response Probability",
+     type="l",  # plot a line;
+     xlab="Day of Study",
+     ylab="Probability",
+     lwd=2,  # nice thick line so that we can see the color;
+     ylim=c(0.5,1),
+     col="blue")
+lines(x=time_grid2,
+      y=probs_2,
+      lwd=2,
+      col="black")
+# Add confidence limits to plot of probabilities
+upper_log_odds_1 <- tvem_model1$grid_fitted_coefficients$`(Intercept)`$upper
+upper_log_odds_2 <- tvem_model2$grid_fitted_coefficients$`(Intercept)`$upper
+lower_log_odds_1 <- tvem_model1$grid_fitted_coefficients$`(Intercept)`$lower
+lower_log_odds_2 <- tvem_model2$grid_fitted_coefficients$`(Intercept)`$lower
+upper_probs_1 <- plogis(upper_log_odds_1)
+upper_probs_2 <- plogis(upper_log_odds_2)
+lower_probs_1 <- plogis(lower_log_odds_1)
+lower_probs_2 <- plogis(lower_log_odds_2)
+lines(x=time_grid1,
+      y=upper_probs_1,
+      lwd=1,   # thin line for plotting confidence limit
+      lty=2,   # dashed line for plotting confidence limit 
+      col="blue")
+lines(x=time_grid1,
+      y=lower_probs_1,
+      lwd=1,
+      lty=2,
+      col="blue")
+lines(x=time_grid2,
+      y=upper_probs_2,
+      lwd=1,
+      lty=2,
+      col="black")
+lines(x=time_grid2,
+      y=lower_probs_2,
+      lwd=1,
+      lty=2,
+      col="black")
+legend(x="bottomright",
+       lwd=2,
+       col=c("blue","black"),
+       legend=c("CARE","PNS"))
+
+```
+
+```{r}
+##############################################################
+# SECOND PLOT PART ONE: INTERCEPT
+##############################################################
+# Now fit models with covariate
+tvem_model3 <- tvem(data=care_data,
+                    formula=engagement~previous_ema_engagement,
+                    family=binomial(),
+                    id=Part_ID,
+                    time=day_time)
+tvem_model4 <- tvem(data=pns_data,
+                    formula=engagement~previous_ema_engagement,
+                    family=binomial(),
+                    id=id,
+                    time=day_time)
+time_grid3 <- tvem_model3$time_grid
+time_grid4 <- tvem_model4$time_grid
+plot(x=time_grid3,
+     y=tvem_model3$grid_fitted_coefficients$`(Intercept)`$estimate,
+     main="Log Odds Given Covariate=0",
+     xlab="Day of Study",
+     ylab="Intercept Log Odds",
+     type="l",
+     lwd=2,
+     ylim=c(-1,1.5),
+     col="blue")
+lines(x=time_grid3,
+      y=tvem_model3$grid_fitted_coefficients$`(Intercept)`$upper,
+      lwd=1,
+      lty=2,
+      col="blue")
+lines(x=time_grid3,
+      y=tvem_model3$grid_fitted_coefficients$`(Intercept)`$lower,
+      lwd=1,
+      lty=2,
+      col="blue")
+lines(x=time_grid4,
+      y=tvem_model4$grid_fitted_coefficients$`(Intercept)`$estimate,
+      lwd=2,
+      col="black")
+lines(x=time_grid4,
+      y=tvem_model4$grid_fitted_coefficients$`(Intercept)`$upper,
+      lwd=1,
+      lty=2,
+      col="black")
+lines(x=time_grid4,
+      y=tvem_model4$grid_fitted_coefficients$`(Intercept)`$lower,
+      lwd=1,
+      lty=2,
+      col="black")
+legend(x="topright",
+       lwd=2,
+       col=c("blue","black"),
+       legend=c("CARE","PNS"))
+
+```
+
+```{r}
+##############################################################
+# SECOND PLOT PART TWO: TIME-VARYING EFFECT
+##############################################################
+tvem_model3 <- tvem(data=care_data,
+                    formula=engagement~previous_ema_engagement,
+                    family=binomial(),
+                    id=Part_ID,
+                    time=day_time)
+tvem_model4 <- tvem(data=pns_data,
+                    formula=engagement~previous_ema_engagement,
+                    family=binomial(),
+                    id=id,
+                    time=day_time)
+time_grid3 <- tvem_model3$time_grid
+time_grid4 <- tvem_model4$time_grid
+plot(x=time_grid3,
+     y=tvem_model3$grid_fitted_coefficients$previous_ema_engagement$estimate,
+     main="Time-Varying Effect on Log Odds Scale",
+     xlab="Day of Study",
+     ylab="Time-Specific Regression Coefficient",
+     type="l",
+     lwd=2,
+     ylim=c(0,3),
+     col="blue")
+lines(x=time_grid3,
+      y=tvem_model3$grid_fitted_coefficients$previous_ema_engagement$upper,
+      lwd=1,
+      lty=2,
+      col="blue")
+lines(x=time_grid3,
+      y=tvem_model3$grid_fitted_coefficients$previous_ema_engagement$lower,
+      lwd=1,
+      lty=2,
+      col="blue")
+lines(x=time_grid4,
+      y=tvem_model4$grid_fitted_coefficients$previous_ema_engagement$estimate,
+      lwd=2,
+      col="black")
+lines(x=time_grid4,
+      y=tvem_model4$grid_fitted_coefficients$previous_ema_engagement$upper,
+      lwd=1,
+      lty=2,
+      col="black")
+lines(x=time_grid4,
+      y=tvem_model4$grid_fitted_coefficients$previous_ema_engagement$lower,
+      lwd=1,
+      lty=2,
+      col="black")
+legend(x="bottomright",
+       lwd=2,
+       col=c("blue","black"),
+       legend=c("CARE","PNS"))
+```
+
+
+```{r}
+##############################################################
+# SECOND PLOT PART ONE: INTERCEPT
+##############################################################
+# Now fit models with covariate
+tvem_model5 <- tvem(data=care_data,
+                    formula=engagement~avg_ema_engagement,
+                    family=binomial(),
+                    id=Part_ID,
+                    time=day_time)
+tvem_model6 <- tvem(data=pns_data,
+                    formula=engagement~avg_ema_engagement,
+                    family=binomial(),
+                    id=id,
+                    time=day_time)
+time_grid5 <- tvem_model5$time_grid
+time_grid6 <- tvem_model6$time_grid
+plot(x=time_grid5,
+     y=tvem_model5$grid_fitted_coefficients$`(Intercept)`$estimate,
+     main="Log Odds Given Covariate=0",
+     xlab="Day of Study",
+     ylab="Intercept Log Odds",
+     type="l",
+     lwd=2,
+     ylim=c(-4,1),
+     col="blue")
+lines(x=time_grid5,
+      y=tvem_model5$grid_fitted_coefficients$`(Intercept)`$upper,
+      lwd=1,
+      lty=2,
+      col="blue")
+lines(x=time_grid5,
+      y=tvem_model5$grid_fitted_coefficients$`(Intercept)`$lower,
+      lwd=1,
+      lty=2,
+      col="blue")
+lines(x=time_grid6,
+      y=tvem_model6$grid_fitted_coefficients$`(Intercept)`$estimate,
+      lwd=2,
+      col="black")
+lines(x=time_grid6,
+      y=tvem_model6$grid_fitted_coefficients$`(Intercept)`$upper,
+      lwd=1,
+      lty=2,
+      col="black")
+lines(x=time_grid6,
+      y=tvem_model6$grid_fitted_coefficients$`(Intercept)`$lower,
+      lwd=1,
+      lty=2,
+      col="black")
+legend(x="topright",
+       lwd=2,
+       col=c("blue","black"),
+       legend=c("CARE","PNS"))
+
+```
+
+```{r}
+##############################################################
+# SECOND PLOT PART TWO: TIME-VARYING EFFECT
+##############################################################
+tvem_model5 <- tvem(data=care_data,
+                    formula=engagement~avg_ema_engagement,
+                    family=binomial(),
+                    id=Part_ID,
+                    time=day_time)
+tvem_model6 <- tvem(data=pns_data,
+                    formula=engagement~avg_ema_engagement,
+                    family=binomial(),
+                    id=id,
+                    time=day_time)
+time_grid5 <- tvem_model5$time_grid
+time_grid6 <- tvem_model6$time_grid
+plot(x=time_grid5,
+     y=tvem_model5$grid_fitted_coefficients$avg_ema_engagement$estimate,
+     main="Time-Varying Effect on Log Odds Scale",
+     xlab="Day of Study",
+     ylab="Time-Specific Regression Coefficient",
+     type="l",
+     lwd=2,
+     ylim=c(0,7),
+     col="blue")
+lines(x=time_grid5,
+      y=tvem_model5$grid_fitted_coefficients$avg_ema_engagement$upper,
+      lwd=1,
+      lty=2,
+      col="blue")
+lines(x=time_grid5,
+      y=tvem_model5$grid_fitted_coefficients$avg_ema_engagement$lower,
+      lwd=1,
+      lty=2,
+      col="blue")
+lines(x=time_grid6,
+      y=tvem_model6$grid_fitted_coefficients$avg_ema_engagement$estimate,
+      lwd=2,
+      col="black")
+lines(x=time_grid6,
+      y=tvem_model6$grid_fitted_coefficients$avg_ema_engagement$upper,
+      lwd=1,
+      lty=2,
+      col="black")
+lines(x=time_grid6,
+      y=tvem_model6$grid_fitted_coefficients$avg_ema_engagement$lower,
+      lwd=1,
+      lty=2,
+      col="black")
+legend(x="bottomright",
+       lwd=2,
+       col=c("blue","black"),
+       legend=c("CARE","PNS"))
+```
+
+```{r}
+############################
+# Time of the day 
+############################
+tvem_model7 <- tvem(data=care_data,
+                     formula=engagement~1,
+                     family=binomial(),
+                     id=Part_ID,
+                     time=time_of_day)
+tvem_model8 <- tvem(data=pns_data,
+                     formula=engagement~1,
+                     family=binomial(),
+                     id=id,
+                     time=time_of_day)
+time_grid7 <- tvem_model7$time_grid
+time_grid8 <- tvem_model8$time_grid
+time_grid7 <- rescale(time_grid7, to=c(0,24))
+time_grid8 <- rescale(time_grid8, to=c(0,24))
+```
+
+
+```{r}
+##############################################################
+# FIRST PLOT
+##############################################################
+# Fit intercept-only models
+
+# Plot probabilities
+
+log_odds_1 <- tvem_model7$grid_fitted_coefficients$`(Intercept)`$estimate
+probs_1 <- plogis(log_odds_1) # plogis is the inverse logit function;
+log_odds_2 <- tvem_model8$grid_fitted_coefficients$`(Intercept)`$estimate
+probs_2 <- plogis(log_odds_2)
+plot(x=time_grid7,
+     y=probs_1,
+     main="Time-Specific Fitted Response Probability",
+     type="l",  # plot a line;
+     xlab="Time of day",
+     ylab="Probability",
+     lwd=2,  # nice thick line so that we can see the color;
+     xlim=c(6,24),
+     ylim=c(0,1),
+     col="blue")
+lines(x=time_grid8,
+      y=probs_2,
+      lwd=2,
+      col="black")
+# Add confidence limits to plot of probabilities
+upper_log_odds_1 <- tvem_model7$grid_fitted_coefficients$`(Intercept)`$upper
+upper_log_odds_2 <- tvem_model8$grid_fitted_coefficients$`(Intercept)`$upper
+lower_log_odds_1 <- tvem_model7$grid_fitted_coefficients$`(Intercept)`$lower
+lower_log_odds_2 <- tvem_model8$grid_fitted_coefficients$`(Intercept)`$lower
+upper_probs_1 <- plogis(upper_log_odds_1)
+upper_probs_2 <- plogis(upper_log_odds_2)
+lower_probs_1 <- plogis(lower_log_odds_1)
+lower_probs_2 <- plogis(lower_log_odds_2)
+lines(x=time_grid7,
+      y=upper_probs_1,
+      lwd=1,   # thin line for plotting confidence limit
+      lty=2,   # dashed line for plotting confidence limit 
+      col="blue")
+lines(x=time_grid7,
+      y=lower_probs_1,
+      lwd=1,
+      lty=2,
+      col="blue")
+lines(x=time_grid8,
+      y=upper_probs_2,
+      lwd=1,
+      lty=2,
+      col="black")
+lines(x=time_grid8,
+      y=lower_probs_2,
+      lwd=1,
+      lty=2,
+      col="black")
+legend(x="bottomright",
+       lwd=2,
+       col=c("blue","black"),
+       legend=c("CARE","PNS"))
+
+```
+
+
+```{r}
+############################
+# Time of the day 
+############################
+tvem_model9 <- tvem(data=care_data,
+                     formula=engagement~previous_ema_engagement,
+                     family=binomial(),
+                     id=Part_ID,
+                     time=time_of_day)
+tvem_model10 <- tvem(data=pns_data,
+                     formula=engagement~previous_ema_engagement,
+                     family=binomial(),
+                     id=id,
+                     time=time_of_day)
+time_grid9 <- tvem_model9$time_grid
+time_grid10 <- tvem_model10$time_grid
+time_grid9 <- rescale(time_grid9, to=c(0,24))
+time_grid10 <- rescale(time_grid10, to=c(0,24))
+```
+
+
+```{r}
+##############################################################
+# SECOND PLOT PART ONE: INTERCEPT
+##############################################################
+# Now fit models with covariate
+plot(x=time_grid9,
+     y=tvem_model9$grid_fitted_coefficients$`(Intercept)`$estimate,
+     main="Log Odds Given Covariate=0",
+     xlab="Time of day",
+     ylab="Intercept Log Odds",
+     type="l",
+     lwd=2,
+     xlim=c(6,24),
+     ylim=c(-1,0.5),
+     col="blue")
+lines(x=time_grid9,
+      y=tvem_model9$grid_fitted_coefficients$`(Intercept)`$upper,
+      lwd=1,
+      lty=2,
+      col="blue")
+lines(x=time_grid9,
+      y=tvem_model9$grid_fitted_coefficients$`(Intercept)`$lower,
+      lwd=1,
+      lty=2,
+      col="blue")
+lines(x=time_grid10,
+      y=tvem_model10$grid_fitted_coefficients$`(Intercept)`$estimate,
+      lwd=2,
+      col="black")
+lines(x=time_grid10,
+      y=tvem_model10$grid_fitted_coefficients$`(Intercept)`$upper,
+      lwd=1,
+      lty=2,
+      col="black")
+lines(x=time_grid10,
+      y=tvem_model10$grid_fitted_coefficients$`(Intercept)`$lower,
+      lwd=1,
+      lty=2,
+      col="black")
+legend(x="topright",
+       lwd=2,
+       col=c("blue","black"),
+       legend=c("CARE","PNS"))
+
+```
+
+
+```{r}
+##############################################################
+# SECOND PLOT PART TWO: TIME-VARYING EFFECT
+##############################################################
+plot(x=time_grid9,
+     y=tvem_model9$grid_fitted_coefficients$previous_ema_engagement$estimate,
+     main="Time-Varying Effect on Log Odds Scale",
+     xlab="Time of day",
+     ylab="Time-Specific Regression Coefficient",
+     type="l",
+     lwd=2,
+     xlim=c(6,24),
+     ylim=c(0,3),
+     col="blue")
+lines(x=time_grid9,
+      y=tvem_model9$grid_fitted_coefficients$previous_ema_engagement$upper,
+      lwd=1,
+      lty=2,
+      col="blue")
+lines(x=time_grid9,
+      y=tvem_model9$grid_fitted_coefficients$previous_ema_engagement$lower,
+      lwd=1,
+      lty=2,
+      col="blue")
+lines(x=time_grid10,
+      y=tvem_model10$grid_fitted_coefficients$previous_ema_engagement$estimate,
+      lwd=2,
+      col="black")
+lines(x=time_grid10,
+      y=tvem_model10$grid_fitted_coefficients$previous_ema_engagement$upper,
+      lwd=1,
+      lty=2,
+      col="black")
+lines(x=time_grid10,
+      y=tvem_model10$grid_fitted_coefficients$previous_ema_engagement$lower,
+      lwd=1,
+      lty=2,
+      col="black")
+legend(x="bottomright",
+       lwd=2,
+       col=c("blue","black"),
+       legend=c("CARE","PNS"))
+```
+
+```{r}
+############################
+# Time from previous EMA 
+############################
+tvem_model11 <- tvem(data=care_data,
+                     formula=engagement~1,
+                     family=binomial(),
+                     id=Part_ID,
+                     time=day_time_delta)
+tvem_model12 <- tvem(data=pns_data,
+                     formula=engagement~1,
+                     family=binomial(),
+                     id=id,
+                     time=day_time_delta)
+time_grid11 <- tvem_model11$time_grid
+time_grid12 <- tvem_model12$time_grid
+time_grid11 <- rescale(time_grid11, to=c(0,24))
+time_grid12 <- rescale(time_grid12, to=c(0,24))
+```
+
+
+```{r}
+##############################################################
+# FIRST PLOT
+##############################################################
+# Fit intercept-only models
+
+# Plot probabilities
+
+log_odds_1 <- tvem_model11$grid_fitted_coefficients$`(Intercept)`$estimate
+probs_1 <- plogis(log_odds_1) # plogis is the inverse logit function;
+log_odds_2 <- tvem_model12$grid_fitted_coefficients$`(Intercept)`$estimate
+probs_2 <- plogis(log_odds_2)
+plot(x=time_grid11,
+     y=probs_1,
+     main="Time-Specific Fitted Response Probability",
+     type="l",  # plot a line;
+     xlab="Time from previous EMA",
+     ylab="Probability",
+     lwd=2,  # nice thick line so that we can see the color;
+     ylim=c(0.5,1),
+     col="blue")
+lines(x=time_grid12,
+      y=probs_2,
+      lwd=2,
+      col="black")
+# Add confidence limits to plot of probabilities
+upper_log_odds_1 <- tvem_model11$grid_fitted_coefficients$`(Intercept)`$upper
+upper_log_odds_2 <- tvem_model12$grid_fitted_coefficients$`(Intercept)`$upper
+lower_log_odds_1 <- tvem_model11$grid_fitted_coefficients$`(Intercept)`$lower
+lower_log_odds_2 <- tvem_model12$grid_fitted_coefficients$`(Intercept)`$lower
+upper_probs_1 <- plogis(upper_log_odds_1)
+upper_probs_2 <- plogis(upper_log_odds_2)
+lower_probs_1 <- plogis(lower_log_odds_1)
+lower_probs_2 <- plogis(lower_log_odds_2)
+lines(x=time_grid11,
+      y=upper_probs_1,
+      lwd=1,   # thin line for plotting confidence limit
+      lty=2,   # dashed line for plotting confidence limit 
+      col="blue")
+lines(x=time_grid11,
+      y=lower_probs_1,
+      lwd=1,
+      lty=2,
+      col="blue")
+lines(x=time_grid12,
+      y=upper_probs_2,
+      lwd=1,
+      lty=2,
+      col="black")
+lines(x=time_grid12,
+      y=lower_probs_2,
+      lwd=1,
+      lty=2,
+      col="black")
+legend(x="bottomright",
+       lwd=2,
+       col=c("blue","black"),
+       legend=c("CARE","PNS"))
+
+```
+
+
+```{r}
+############################
+# Time from previous EMA 
+############################
+tvem_model13 <- tvem(data=care_data,
+                     formula=engagement~previous_ema_engagement,
+                     family=binomial(),
+                     id=Part_ID,
+                     time=day_time_delta)
+tvem_model14 <- tvem(data=pns_data,
+                     formula=engagement~previous_ema_engagement,
+                     family=binomial(),
+                     id=id,
+                     time=day_time_delta)
+time_grid13 <- tvem_model13$time_grid
+time_grid14 <- tvem_model14$time_grid
+time_grid13 <- rescale(time_grid13, to=c(0,24))
+time_grid14 <- rescale(time_grid14, to=c(0,24))
+```
+
+
+```{r}
+##############################################################
+# SECOND PLOT PART ONE: INTERCEPT
+##############################################################
+# Now fit models with covariate
+plot(x=time_grid13,
+     y=tvem_model13$grid_fitted_coefficients$`(Intercept)`$estimate,
+     main="Log Odds Given Covariate=0",
+     xlab="Time from previous EMA",
+     ylab="Intercept Log Odds",
+     type="l",
+     lwd=2,
+     ylim=c(-1,1),
+     col="blue")
+lines(x=time_grid13,
+      y=tvem_model13$grid_fitted_coefficients$`(Intercept)`$upper,
+      lwd=1,
+      lty=2,
+      col="blue")
+lines(x=time_grid13,
+      y=tvem_model13$grid_fitted_coefficients$`(Intercept)`$lower,
+      lwd=1,
+      lty=2,
+      col="blue")
+lines(x=time_grid14,
+      y=tvem_model14$grid_fitted_coefficients$`(Intercept)`$estimate,
+      lwd=2,
+      col="black")
+lines(x=time_grid14,
+      y=tvem_model14$grid_fitted_coefficients$`(Intercept)`$upper,
+      lwd=1,
+      lty=2,
+      col="black")
+lines(x=time_grid14,
+      y=tvem_model14$grid_fitted_coefficients$`(Intercept)`$lower,
+      lwd=1,
+      lty=2,
+      col="black")
+legend(x="topright",
+       lwd=2,
+       col=c("blue","black"),
+       legend=c("CARE","PNS"))
+
+```
+
+
+```{r}
+##############################################################
+# SECOND PLOT PART TWO: TIME-VARYING EFFECT
+##############################################################
+plot(x=time_grid13,
+     y=tvem_model13$grid_fitted_coefficients$previous_ema_engagement$estimate,
+     main="Time-Varying Effect on Log Odds Scale",
+     xlab="Time from previous EMA",
+     ylab="Time-Specific Regression Coefficient",
+     type="l",
+     lwd=2,
+     ylim=c(0.5,3),
+     col="blue")
+lines(x=time_grid13,
+      y=tvem_model13$grid_fitted_coefficients$previous_ema_engagement$upper,
+      lwd=1,
+      lty=2,
+      col="blue")
+lines(x=time_grid13,
+      y=tvem_model13$grid_fitted_coefficients$previous_ema_engagement$lower,
+      lwd=1,
+      lty=2,
+      col="blue")
+lines(x=time_grid14,
+      y=tvem_model14$grid_fitted_coefficients$previous_ema_engagement$estimate,
+      lwd=2,
+      col="black")
+lines(x=time_grid14,
+      y=tvem_model14$grid_fitted_coefficients$previous_ema_engagement$upper,
+      lwd=1,
+      lty=2,
+      col="black")
+lines(x=time_grid14,
+      y=tvem_model14$grid_fitted_coefficients$previous_ema_engagement$lower,
+      lwd=1,
+      lty=2,
+      col="black")
+legend(x="bottomright",
+       lwd=2,
+       col=c("blue","black"),
+       legend=c("CARE","PNS"))
+```
