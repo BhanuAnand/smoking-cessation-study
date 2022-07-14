@@ -1,0 +1,183 @@
+---
+title: "CARE Data Processing"
+output: html_notebook
+---
+
+# Getting Started
+
+## Libraries
+
+```{r}
+#install.packages("dplyr")
+#install.packages("tvem")
+library(tvem)
+library(readr)
+library(dplyr)
+library(ggplot2)
+```
+
+## Read data
+
+```{r}
+care_data <- read_csv("O:/QMP-BIDS/Utah - CARE Datasets/Aditi/CARE/Code/Survival-HMM-Care/care_ema_raw/curated_random_ema_care_data_for_active_users.csv")
+```
+
+Let's look into the data
+
+```{r}
+care_data
+```
+## Data preparation
+
+
+We will create a status variable with value 1 meaning EMA response was complete and 0 meaning EMA response was either incomplete or missed.
+
+```{r}
+care_data$engagement <- ifelse(care_data$status == 'Complete', 1, 0)
+care_data %>% count(engagement)
+```
+
+Here we are arranging the EMAs as per their delivered time for each individual so that we can produce lag variables
+
+```{r}
+care_data <- care_data[order(care_data$Part_ID, care_data$Initiated), ]
+care_data
+```
+
+Now, we will create a new variable named as previous_ema_engagement by lagging variable engagement by 1
+
+```{r}
+care_data <- care_data %>%
+  group_by(Part_ID) %>%
+  mutate(previous_ema_engagement = lag(engagement, n=1, order_by=Initiated))
+care_data[c('Part_ID', 'status', 'engagement', 'previous_ema_engagement')]
+```
+
+Here, we find an average response until time t.
+
+```{r}
+care_data <- care_data %>% 
+  group_by(Part_ID) %>% 
+  mutate(rec = 1) %>% 
+  mutate(rollavg = cumsum(engagement)/cumsum(rec)) %>% 
+  select(-rec)
+care_data$rollavg <- format(care_data$rollavg, digits = 3)
+care_data[c('Part_ID', 'status', 'engagement', 'previous_ema_engagement', 'rollavg')]
+```
+
+
+Now, we are creating a new variable named as avg_ema_engagement by lagging the average response calculated above so that each EMA at time t+1 has a corresponding average response until time t in front of them.
+
+```{r}
+care_data <- care_data %>%
+  group_by(Part_ID) %>%
+  mutate(avg_ema_engagement = as.numeric(lag(rollavg, n=1, order_by=Initiated)))
+care_data[c('Part_ID', 'status', 'engagement', 'previous_ema_engagement', 'rollavg', 'avg_ema_engagement')]
+```
+
+
+Below we are creating a new variable day_time to be used in our TVEM analysis. We are adding the time of day to the study day in order to calculate this variable.
+
+```{r}
+care_data$day_time <- care_data$new_day + round((as.numeric(format(care_data$Initiated,'%H'))+round(as.numeric(format(care_data$Initiated,'%M'))/60, digits = 2))/24, digits = 3)
+care_data[c('Part_ID', 'status', 'day_time', 'engagement', 'previous_ema_engagement', 'avg_ema_engagement')]
+```
+
+
+Also, we are going to have time of day saved in a separate variable to be replaced by day_time in our analysis
+
+```{r}
+care_data$time_of_day <- round((as.numeric(format(care_data$Initiated,'%H'))+round(as.numeric(format(care_data$Initiated,'%M'))/60, digits = 2))/24, digits = 3)
+care_data[c('Part_ID', 'status', 'day_time', 'time_of_day', 'engagement', 'previous_ema_engagement', 'avg_ema_engagement')]
+```
+
+
+Now, we want to look at those EMAs that were registered with same timestamp.
+
+```{r}
+duplicate_timestamp_rows <- care_data %>% filter((day_time == lead(day_time) & lead(status) == 'Complete') | (day_time == lag(day_time) & lag(status) == 'Complete'))
+duplicate_timestamp_rows
+```
+
+Remove the duplicate timestamp rows with Incomplete or Missing status
+
+```{r}
+care_data <- care_data[!((care_data$day_time == lead(care_data$day_time) & lead(care_data$status) == 'Complete') | (care_data$day_time == lag(care_data$day_time) & lag(care_data$status) == 'Complete')),]
+```
+
+
+Here we find delta that is defined as the difference in the time of the current EMA from the previous EMA
+
+```{r}
+care_data <- care_data %>%
+  group_by(Part_ID) %>%
+  mutate(day_time_lagged = lag(day_time, n=1, order_by=Initiated))
+care_data$day_time_delta <- care_data$day_time - care_data$day_time_lagged
+#care_data$day_time_delta[is.na(care_data$day_time_delta)] <- 0
+care_data$day_time_delta <- round(care_data$day_time_delta, digits = 3)
+care_data <- filter(care_data, day_time_delta<1)
+care_data[c('Part_ID', 'status', 'time_of_day', 'day_time', 'day_time_delta', 'engagement', 'previous_ema_engagement', 'avg_ema_engagement')]
+```
+
+
+As we have done previous manipulation by lagging a variable within a group, therefore, NA values are introduced in each group. We are now checking the count of those NA values. 
+
+```{r}
+sum(is.na(care_data$avg_ema_engagement))
+```
+
+Now, we fetch only those rows per individual that have previous engagement value in order to avoid any kind of bias that can occur while we would run the model.
+
+```{r}
+care_data <- care_data %>%
+  group_by(Part_ID) %>%
+  slice(2:n())
+```
+
+```{r}
+sum(is.na(care_data$avg_ema_engagement))
+```
+
+
+We are adding 7 as the study days in the study were negative that gave negative day_time but in our plot we should represent day as a positive number.
+
+```{r}
+care_data$day_time <- care_data$day_time + 7
+care_data[c('Part_ID', 'status', 'time_of_day', 'day_time', 'engagement', 'previous_ema_engagement')]
+```
+
+Now, we will confirm if we have only those rows with study days from -7 to 27.
+
+```{r}
+max(care_data$new_day)
+min(care_data$new_day)
+```
+
+```{r}
+dim(care_data)
+```
+
+Now, we want to look at those EMAs that got completed within a span of 20 minutes. The logic behind this is: at each row we check that the current status of EMA is not Complete and the next EMA (20 min apart) is Complete. So, this condition will give us EMAs that remained Incomplete or Missing but were Completed 20 min later.
+
+```{r}
+care_data %>% filter((lead(day_time_delta) <= 0.01 & status != 'Complete' & lead(status) == "Complete") | (lead(day_time_delta) <= 0.01 & status == 'Complete' & lead(status) != "Complete"))
+```
+```{r}
+care_data %>% filter(lead(day_time_delta) <= 0.01 & status != 'Complete' & lead(status) == "Complete")
+```
+
+
+```{r}
+care_data %>% filter(lead(day_time_delta) <= 0.01 & status == 'Complete' & lead(status) != "Complete")
+```
+
+We will run the below script if we want to remove the Incomplete or Missing EMAs that got completed within a time frame of 20 min.
+```{r}
+care_data <- care_data[!((lead(care_data$day_time_delta) <= 0.01 & care_data$status != 'Complete' & lead(care_data$status) == "Complete") | (lead(care_data$day_time_delta) <= 0.01 & care_data$status == 'Complete' & lead(care_data$status) != "Complete")),]
+care_data
+```
+```{r}
+aggregate(data = care_data, Initiated ~ day_time_delta, length)
+```
+
+
